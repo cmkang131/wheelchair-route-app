@@ -21,7 +21,7 @@ from streamlit_folium import st_folium
 
 from cost_model import CostParams, build_g_prime, edge_cost, has_stairs
 from data_loader import load
-from pathfinding import a_star, alt, bidirectional_dijkstra, build_landmarks, dijkstra, heuristic_scale
+from pathfinding import _reverse, a_star, alt, bidirectional_dijkstra, build_landmarks, dijkstra, heuristic_scale
 
 DATA_DIR = Path(__file__).parent / "data"
 STEEP = 0.0833   # 1:12, usual maximum ramp slope for wheelchairs
@@ -73,7 +73,8 @@ def landmarks_for(p: CostParams):
 
 
 lm = landmarks_for(params)
-t0 = time.perf_counter(); bi = bidirectional_dijkstra(adj, s, t); t_b = time.perf_counter() - t0
+rev = _reverse(adj)   # built once, outside the timed search (like ALT's landmarks)
+t0 = time.perf_counter(); bi = bidirectional_dijkstra(adj, s, t, rev); t_b = time.perf_counter() - t0
 t0 = time.perf_counter(); alt_route = alt(data.coords, adj, s, t, lm, alpha); t_l = time.perf_counter() - t0
 
 # distance-only baseline: every allowed edge, stairs included, cost = distance
