@@ -3,7 +3,7 @@ python3 benchmark.py [--k 8]"""
 import argparse, itertools, math, time
 from cost_model import CostParams, build_g_prime
 from data_loader import load
-from pathfinding import a_star, alt, build_landmarks, dijkstra, heuristic_scale
+from pathfinding import _reverse, a_star, alt, bidirectional_dijkstra, build_landmarks, dijkstra, heuristic_scale
 
 ap = argparse.ArgumentParser(); ap.add_argument("--k", type=int, default=8); args = ap.parse_args()
 data = load("data")
@@ -15,22 +15,26 @@ for r in data.entrances:
     if r["wheelchair_accessible"].lower() == "yes":
         rep.setdefault(r["building_id"], r["node_id"])
 pairs = list(itertools.combinations(sorted(rep.values()), 2))
-tot = {"Dijkstra": [0, 0.0], "A*": [0, 0.0], "ALT": [0, 0.0]}
+rev = _reverse(adj)
+tot = {"Dijkstra": [0, 0.0], "Bidirectional": [0, 0.0], "A*": [0, 0.0], "ALT": [0, 0.0]}
 found = bad = 0
-for s, t in pairs:
-    res = {}
-    for name, fn in [("Dijkstra", lambda: dijkstra(data.coords, adj, s, t)),
-                     ("A*", lambda: a_star(data.coords, adj, s, t, alpha)),
-                     ("ALT", lambda: alt(data.coords, adj, s, t, lm, alpha))]:
-        t1 = time.perf_counter(); r = fn(); dt = time.perf_counter() - t1
-        res[name] = r; tot[name][0] += r.expanded; tot[name][1] += dt
-    if res["Dijkstra"].found:
-        found += 1
-        bad += any(not math.isclose(res[n].cost, res["Dijkstra"].cost, abs_tol=1e-6) for n in res)
-    else:
-        bad += any(res[n].found for n in res)
+for rep_i in range(5):
+  for s, t in pairs:
+      res = {}
+      for name, fn in [("Dijkstra", lambda: dijkstra(data.coords, adj, s, t)),
+                       ("Bidirectional", lambda: bidirectional_dijkstra(adj, s, t, rev)),
+                       ("A*", lambda: a_star(data.coords, adj, s, t, alpha)),
+                       ("ALT", lambda: alt(data.coords, adj, s, t, lm, alpha))]:
+          t1 = time.perf_counter(); r = fn(); dt = time.perf_counter() - t1
+          res[name] = r; tot[name][0] += r.expanded; tot[name][1] += dt
+      if res["Dijkstra"].found:
+          found += 1
+          bad += any(not math.isclose(res[n].cost, res["Dijkstra"].cost, abs_tol=1e-6) for n in res)
+      else:
+          bad += any(res[n].found for n in res)
+found //= 5; bad //= 1
 print(f"pairs {len(pairs)}, found {found}, cost mismatches {bad}")
 print(f"landmarks k={len(lm.ids)}, precompute {t_pre*1000:.1f} ms (once per cost setting)")
 base = tot["Dijkstra"][0]
 for n, (e, s) in tot.items():
-    print(f"{n:9s} expanded {e:6d} ({100*e/base:5.1f}%)  time {s*1000:7.1f} ms")
+    print(f"{n:13s} expanded {e//5:6d} ({100*e/base:5.1f}%)  time {s*1000/5:7.1f} ms (avg of 5 runs)")

@@ -50,7 +50,15 @@ def search(coords, adj, s: str, t: str, alpha: float = 0.0) -> Route:
     """alpha > 0: A*.  alpha = 0: Dijkstra (h = 0)."""
     if s == t:
         return Route(True, 0.0, [s], [], 0)
-    h = (lambda v: alpha * haversine(coords[v], coords[t])) if alpha > 0 else (lambda v: 0.0)
+    if alpha > 0:
+        tc, memo = coords[t], {}
+        def h(v):                       # cache: each node's h is computed once
+            if v not in memo:
+                memo[v] = alpha * haversine(coords[v], tc)
+            return memo[v]
+    else:
+        def h(v):
+            return 0.0
     g = {s: 0.0}
     parent: dict[str, tuple[str, str]] = {}
     closed: set[str] = set()
@@ -185,13 +193,17 @@ def alt_heuristic(coords, lm: Landmarks, t: str, alpha: float):
     fwd = [(d, d[t]) for d in lm.to if t in d]          # landmarks that reach t
     bwd = [(d, d[t]) for d in lm.frm if t in d]         # landmarks t can reach
     tc = coords[t]
+    memo: dict[str, float] = {}
 
     def h(v):
+        if v in memo:
+            return memo[v]
         best = alpha * haversine(coords[v], tc) if alpha > 0 else 0.0
         for d, dlt in fwd:
             best = max(best, dlt - d.get(v, math.inf))   # -inf if L cannot reach v
         for d, dtl in bwd:
             best = max(best, d.get(v, math.inf) - dtl)   # +inf: v cannot reach t
+        memo[v] = best
         return best
     return h
 
@@ -199,6 +211,61 @@ def alt_heuristic(coords, lm: Landmarks, t: str, alpha: float):
 def alt(coords, adj, s, t, lm: Landmarks, alpha=None) -> Route:
     a = heuristic_scale(coords, adj) if alpha is None else alpha
     return search_h(adj, s, t, alt_heuristic(coords, lm, t, a))
+
+
+# ---------------------------------------------------------------------------
+# Bidirectional Dijkstra
+#
+# Search forward from s on G' and backward from t on reversed G' at the same
+# time, always advancing the side with the smaller queue top. mu is the best
+# s-t cost seen so far through any edge joining the two searches. Stop when
+# top_f + top_b >= mu: any unseen path must cost at least top_f + top_b, so mu
+# is optimal. Each side only grows a ball of radius about d(s,t)/2.
+# ---------------------------------------------------------------------------
+
+def bidirectional_dijkstra(adj, s: str, t: str, rev=None) -> Route:
+    if s == t:
+        return Route(True, 0.0, [s], [], 0)
+    rev = rev if rev is not None else _reverse(adj)
+    dist = ({s: 0.0}, {t: 0.0})
+    par: tuple[dict, dict] = ({}, {})
+    done = (set(), set())
+    heaps = ([(0.0, s)], [(0.0, t)])
+    graphs = (adj, rev)
+    mu, meet = math.inf, None
+    while heaps[0] and heaps[1]:
+        if heaps[0][0][0] + heaps[1][0][0] >= mu:
+            break
+        side = 0 if heaps[0][0][0] <= heaps[1][0][0] else 1
+        d, u = heappop(heaps[side])
+        if u in done[side]:
+            continue
+        done[side].add(u)
+        other = dist[1 - side]
+        for v, e, c in graphs[side].get(u, ()):
+            nd = d + c
+            if nd < dist[side].get(v, math.inf):
+                dist[side][v] = nd
+                par[side][v] = (u, e)
+                heappush(heaps[side], (nd, v))
+            if v in other and nd + other[v] < mu:
+                mu, meet = nd + other[v], v
+    expanded = len(done[0]) + len(done[1])
+    if meet is None:
+        return Route(False, expanded=expanded)
+    left, edges = [meet], []
+    while left[-1] != s:
+        p, e = par[0][left[-1]]
+        edges.append(e)
+        left.append(p)
+    nodes, edges = left[::-1], edges[::-1]
+    cur = meet
+    while cur != t:
+        n, e = par[1][cur]          # reversed edge (n <- cur) is original cur -> n
+        edges.append(e)
+        nodes.append(n)
+        cur = n
+    return Route(True, mu, nodes, edges, expanded)
 
 
 def a_star(coords, adj, s, t, alpha=None) -> Route:

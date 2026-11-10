@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 from cost_model import CostParams, build_g_prime, edge_cost  # noqa: E402
 from data_loader import load  # noqa: E402
-from pathfinding import a_star, alt, alt_heuristic, build_landmarks, dijkstra, haversine, heuristic_scale  # noqa: E402
+from pathfinding import a_star, alt, bidirectional_dijkstra, alt_heuristic, build_landmarks, dijkstra, haversine, heuristic_scale  # noqa: E402
 
 
 class CostTests(unittest.TestCase):
@@ -70,6 +70,21 @@ class CampusTests(unittest.TestCase):
             self.assertEqual(a.found, d.found)
             if a.found:
                 self.assertTrue(math.isclose(a.cost, d.cost, abs_tol=1e-6))
+
+    def test_bidirectional_matches_dijkstra(self):
+        nodes = sorted({e["node_id"] for e in self.data.entrances})
+        for s, t in itertools.combinations(nodes, 2):
+            b = bidirectional_dijkstra(self.adj, s, t)
+            d = dijkstra(self.data.coords, self.adj, s, t)
+            self.assertEqual(b.found, d.found)
+            if b.found:
+                self.assertTrue(math.isclose(b.cost, d.cost, abs_tol=1e-6))
+                total = 0.0
+                for (u, v), eid in zip(zip(b.nodes, b.nodes[1:]), b.edges):
+                    e = self.data.edge_by_id[eid]
+                    self.assertEqual((e["source"], e["target"]), (u, v))
+                    total += edge_cost(e, CostParams())["final_cost"]
+                self.assertTrue(math.isclose(total, b.cost, abs_tol=1e-6))
 
     def test_alt_heuristic_consistent(self):
         lm = build_landmarks(self.adj, k=8)

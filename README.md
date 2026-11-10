@@ -6,8 +6,8 @@
 |---|---|
 | data_loader.py | 1. Graph Builder CSV 읽기 |
 | cost_model.py | 2. 파트1 비용 (팀 비용 모델 의사코드 그대로) |
-| pathfinding.py | 3. 파트2 A* + ALT(랜드마크) + 비교용 Dijkstra |
-| benchmark.py | 276쌍에서 Dijkstra·A*·ALT 탐색 노드·시간 비교 |
+| pathfinding.py | 3. 파트2 A*, ALT(랜드마크), 양방향 Dijkstra, 기준 Dijkstra |
+| benchmark.py | 276쌍에서 Dijkstra·양방향 Dijkstra·A*·ALT 탐색 노드·시간 비교 (5회 평균) |
 | app.py | 4~6. 경로 요약, 경고, 지도, 화면 |
 | data/ | nodes, edges, buildings, entrances CSV |
 | tests/ | 비용식 예시(100m·10%→125), A*=Dijkstra 비용 일치, h 일관성 검사 |

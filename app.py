@@ -21,7 +21,7 @@ from streamlit_folium import st_folium
 
 from cost_model import CostParams, build_g_prime, edge_cost, has_stairs
 from data_loader import load
-from pathfinding import a_star, alt, build_landmarks, dijkstra, heuristic_scale
+from pathfinding import a_star, alt, bidirectional_dijkstra, build_landmarks, dijkstra, heuristic_scale
 
 DATA_DIR = Path(__file__).parent / "data"
 STEEP = 0.0833   # 1:12, usual maximum ramp slope for wheelchairs
@@ -73,6 +73,7 @@ def landmarks_for(p: CostParams):
 
 
 lm = landmarks_for(params)
+t0 = time.perf_counter(); bi = bidirectional_dijkstra(adj, s, t); t_b = time.perf_counter() - t0
 t0 = time.perf_counter(); alt_route = alt(data.coords, adj, s, t, lm, alpha); t_l = time.perf_counter() - t0
 
 # distance-only baseline: every allowed edge, stairs included, cost = distance
@@ -119,12 +120,12 @@ else:
     for w in warn:
         st.warning(w)
 
-    with st.expander("Dijkstra vs A* vs ALT"):
+    with st.expander("Search algorithms compared"):
         st.table(pd.DataFrame({
-            "algorithm": ["Dijkstra", "A* (straight line)", "ALT (8 landmarks)"],
-            "total cost": [round(ref.cost, 2), round(route.cost, 2), round(alt_route.cost, 2)],
-            "nodes expanded": [ref.expanded, route.expanded, alt_route.expanded],
-            "time (ms)": [round(t_d * 1000, 2), round(t_a * 1000, 2), round(t_l * 1000, 2)],
+            "algorithm": ["Dijkstra", "Bidirectional Dijkstra", "A* (straight line)", "ALT (8 landmarks)"],
+            "total cost": [round(x.cost, 2) for x in (ref, bi, route, alt_route)],
+            "nodes expanded": [x.expanded for x in (ref, bi, route, alt_route)],
+            "time (ms)": [round(x * 1000, 2) for x in (t_d, t_b, t_a, t_l)],
         }).set_index("algorithm"))
         st.caption(f"h(v) = {alpha:.4f} × straight-line distance to the destination. "
                    f"Same cost: {math.isclose(route.cost, ref.cost, abs_tol=1e-6)}")
