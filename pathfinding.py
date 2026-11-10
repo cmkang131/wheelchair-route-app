@@ -1,13 +1,18 @@
 """Part 2 — A* (and Dijkstra for comparison) on G'.
 
 f(v) = g(v) + h(v),  h(v) = alpha * D(v, t)
-D     = Haversine straight-line distance (m)
+D     = straight-line distance (m), on a local flat projection of the campus
+        (x = R*lon*cos(lat0), y = R*lat; differs from Haversine by < 0.01% here)
 alpha = min over edges of final_cost(e) / D(e)  (<= 1)
 
 Every edge then satisfies alpha*D(u,v) <= cost(u,v); with the triangle inequality
 h(u) <= cost(u,v) + h(v), so h is consistent and A* returns the optimal cost.
 (alpha is needed because the export rounds distance_m to mm, so a few edges are
-slightly shorter than their Haversine distance; alpha is about 0.999.)
+slightly shorter than their straight-line distance; alpha is about 0.999.)
+
+Coordinates are projected once, so h costs one hypot per node instead of a
+Haversine with five trig calls; that per-node cost is what made A* look no
+faster than Dijkstra in Python.
 """
 
 from __future__ import annotations
@@ -27,11 +32,30 @@ def haversine(p: tuple[float, float], q: tuple[float, float]) -> float:
     return 2 * R * math.asin(math.sqrt(min(1.0, x)))
 
 
+_XY: dict[int, dict] = {}
+
+
+def planar(coords) -> dict[str, tuple[float, float]]:
+    """(lat, lon) -> local (x, y) in metres, computed once per coords dict."""
+    key = id(coords)
+    if key not in _XY or len(_XY[key]) != len(coords):
+        lat0 = math.radians(sum(c[0] for c in coords.values()) / len(coords))
+        k = math.cos(lat0)
+        _XY[key] = {v: (R * math.radians(lo) * k, R * math.radians(la)) for v, (la, lo) in coords.items()}
+    return _XY[key]
+
+
+def straight(coords, u, v) -> float:
+    xy = planar(coords)
+    return math.dist(xy[u], xy[v])
+
+
 def heuristic_scale(coords, adj) -> float:
+    xy = planar(coords)
     a = math.inf
     for u, out in adj.items():
         for v, _, c in out:
-            d = haversine(coords[u], coords[v])
+            d = math.dist(xy[u], xy[v])
             if d > 0:
                 a = min(a, c / d)
     return 0.0 if a is math.inf else min(a, 1.0)
@@ -46,43 +70,49 @@ class Route:
     expanded: int = 0          # nodes popped and processed
 
 
+def _path(parent, s, t):
+    nodes, edges = [t], []
+    while nodes[-1] != s:
+        p, e = parent[nodes[-1]]
+        edges.append(e)
+        nodes.append(p)
+    return nodes[::-1], edges[::-1]
+
+
 def search(coords, adj, s: str, t: str, alpha: float = 0.0) -> Route:
-    """alpha > 0: A*.  alpha = 0: Dijkstra (h = 0)."""
+    """alpha > 0: A*.  alpha = 0: Dijkstra (h = 0). Same loop, so the only
+    difference between the two is the h term."""
     if s == t:
         return Route(True, 0.0, [s], [], 0)
-    if alpha > 0:
-        tc, memo = coords[t], {}
-        def h(v):                       # cache: each node's h is computed once
-            if v not in memo:
-                memo[v] = alpha * haversine(coords[v], tc)
-            return memo[v]
-    else:
-        def h(v):
-            return 0.0
+    use_h = alpha > 0
+    if use_h:
+        xy = planar(coords)
+        tx, ty = xy[t]
+        hypot = math.hypot
     g = {s: 0.0}
     parent: dict[str, tuple[str, str]] = {}
     closed: set[str] = set()
-    heap = [(h(s), 0, s)]
-    seq = 1
+    heap = [(0.0, s)]
+    inf = math.inf
     while heap:
-        _, _, u = heappop(heap)
+        u = heappop(heap)[1]
         if u in closed:
             continue
         closed.add(u)
         if u == t:
-            nodes, edges = [t], []
-            while nodes[-1] != s:
-                p, e = parent[nodes[-1]]
-                edges.append(e)
-                nodes.append(p)
-            return Route(True, g[t], nodes[::-1], edges[::-1], len(closed))
+            nodes, edges = _path(parent, s, t)
+            return Route(True, g[t], nodes, edges, len(closed))
+        gu = g[u]
         for v, e, c in adj.get(u, ()):
-            ng = g[u] + c
-            if ng < g.get(v, math.inf):
+            ng = gu + c
+            if ng < g.get(v, inf):
                 g[v] = ng
                 parent[v] = (u, e)
-                heappush(heap, (ng + h(v), seq, v))
-                seq += 1
+                if use_h:
+                    x, y = xy[v]
+                    heappush(heap, (ng + alpha * hypot(x - tx, y - ty), v))
+                else:
+                    heappush(heap, (ng, v))
     return Route(False, expanded=len(closed))
 
 
@@ -192,13 +222,14 @@ def build_landmarks(adj, k: int = 8, seed_node: str | None = None) -> Landmarks:
 def alt_heuristic(coords, lm: Landmarks, t: str, alpha: float):
     fwd = [(d, d[t]) for d in lm.to if t in d]          # landmarks that reach t
     bwd = [(d, d[t]) for d in lm.frm if t in d]         # landmarks t can reach
-    tc = coords[t]
+    xy = planar(coords)
+    tc = xy[t]
     memo: dict[str, float] = {}
 
     def h(v):
         if v in memo:
             return memo[v]
-        best = alpha * haversine(coords[v], tc) if alpha > 0 else 0.0
+        best = alpha * math.dist(xy[v], tc) if alpha > 0 else 0.0
         for d, dlt in fwd:
             best = max(best, dlt - d.get(v, math.inf))   # -inf if L cannot reach v
         for d, dtl in bwd:

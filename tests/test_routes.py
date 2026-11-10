@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 from cost_model import CostParams, build_g_prime, edge_cost  # noqa: E402
 from data_loader import load  # noqa: E402
-from pathfinding import a_star, alt, bidirectional_dijkstra, alt_heuristic, build_landmarks, dijkstra, haversine, heuristic_scale  # noqa: E402
+from pathfinding import a_star, alt, bidirectional_dijkstra, alt_heuristic, build_landmarks, dijkstra, heuristic_scale, straight  # noqa: E402
 
 
 class CostTests(unittest.TestCase):
@@ -49,7 +49,7 @@ class CampusTests(unittest.TestCase):
         c = self.data.coords
         for u, out in self.adj.items():
             for v, _, w in out:
-                self.assertLessEqual(self.alpha * haversine(c[u], c[v]), w + 1e-9)
+                self.assertLessEqual(self.alpha * straight(c, u, v), w + 1e-9)
 
     def test_astar_matches_dijkstra(self):
         nodes = sorted({e["node_id"] for e in self.data.entrances})

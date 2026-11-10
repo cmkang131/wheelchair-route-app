@@ -21,12 +21,12 @@ from streamlit_folium import st_folium
 
 from cost_model import CostParams, build_g_prime, edge_cost, has_stairs
 from data_loader import load
-from pathfinding import _reverse, a_star, alt, bidirectional_dijkstra, build_landmarks, dijkstra, heuristic_scale
+from pathfinding import a_star, dijkstra, heuristic_scale
 
 DATA_DIR = Path(__file__).parent / "data"
 STEEP = 0.0833   # 1:12, usual maximum ramp slope for wheelchairs
 
-st.set_page_config(page_title="Wheelchair Route", layout="wide")
+st.set_page_config(page_title="Wheelchair Route (Demo)", layout="wide")
 
 
 @st.cache_data
@@ -76,17 +76,6 @@ def timed(fn, runs=5):
 route, t_a = timed(lambda: a_star(data.coords, adj, s, t, alpha))
 ref, t_d = timed(lambda: dijkstra(data.coords, adj, s, t))
 
-
-@st.cache_resource
-def landmarks_for(p: CostParams):
-    return build_landmarks(build_g_prime(data.edges, p), k=8)
-
-
-lm = landmarks_for(params)
-rev = _reverse(adj)   # built once, outside the timed search (like ALT's landmarks)
-bi, t_b = timed(lambda: bidirectional_dijkstra(adj, s, t, rev))
-alt_route, t_l = timed(lambda: alt(data.coords, adj, s, t, lm, alpha))
-
 # distance-only baseline: every allowed edge, stairs included, cost = distance
 base_adj = {}
 for e in data.edges:
@@ -94,7 +83,8 @@ for e in data.edges:
         base_adj.setdefault(e["source"], []).append((e["target"], e["edge_id"], float(e["distance_m"])))
 base = dijkstra(data.coords, base_adj, s, t)
 
-st.title("Wheelchair route finder · POSTECH")
+st.title("Wheelchair route finder · POSTECH (Demo)")
+st.info("Demo version: graph edges are not reviewed yet, and slope penalty values are assumptions.")
 st.caption(f"{start}  →  {goal}")
 
 if not route.found:
@@ -131,12 +121,12 @@ else:
     for w in warn:
         st.warning(w)
 
-    with st.expander("Search algorithms compared"):
+    with st.expander("A* vs Dijkstra"):
         st.table(pd.DataFrame({
-            "algorithm": ["Dijkstra", "Bidirectional Dijkstra", "A* (straight line)", "ALT (8 landmarks)"],
-            "total cost": [round(x.cost, 2) for x in (ref, bi, route, alt_route)],
-            "nodes expanded": [x.expanded for x in (ref, bi, route, alt_route)],
-            "time (ms, best of 5)": [round(x * 1000, 2) for x in (t_d, t_b, t_a, t_l)],
+            "algorithm": ["Dijkstra", "A* (straight line)"],
+            "total cost": [round(x.cost, 2) for x in (ref, route)],
+            "nodes expanded": [x.expanded for x in (ref, route)],
+            "time (ms, best of 5)": [round(x * 1000, 2) for x in (t_d, t_a)],
         }).set_index("algorithm"))
         st.caption(f"h(v) = {alpha:.4f} × straight-line distance to the destination. "
                    f"Same cost: {math.isclose(route.cost, ref.cost, abs_tol=1e-6)}")

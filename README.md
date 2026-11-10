@@ -1,4 +1,4 @@
-# Wheelchair Route App (PBL1)
+# Wheelchair Route App (PBL1) (데모)
 
 팀 앱 설계(컴포넌트 1~6)대로 만든 실행 버전. 실제 Graph Builder 데이터(11/10 버전, 경사 포함)를 씀.
 
