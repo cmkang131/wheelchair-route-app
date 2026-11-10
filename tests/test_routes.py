@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 from cost_model import CostParams, build_g_prime, edge_cost  # noqa: E402
 from data_loader import load  # noqa: E402
-from pathfinding import a_star, dijkstra, haversine, heuristic_scale  # noqa: E402
+from pathfinding import a_star, alt, alt_heuristic, build_landmarks, dijkstra, haversine, heuristic_scale  # noqa: E402
 
 
 class CostTests(unittest.TestCase):
@@ -60,6 +60,27 @@ class CampusTests(unittest.TestCase):
             if a.found:
                 self.assertTrue(math.isclose(a.cost, d.cost, abs_tol=1e-6))
                 self.assertLessEqual(a.expanded, d.expanded)
+
+    def test_alt_matches_dijkstra(self):
+        lm = build_landmarks(self.adj, k=8)
+        nodes = sorted({e["node_id"] for e in self.data.entrances})
+        for s, t in itertools.combinations(nodes, 2):
+            a = alt(self.data.coords, self.adj, s, t, lm, self.alpha)
+            d = dijkstra(self.data.coords, self.adj, s, t)
+            self.assertEqual(a.found, d.found)
+            if a.found:
+                self.assertTrue(math.isclose(a.cost, d.cost, abs_tol=1e-6))
+
+    def test_alt_heuristic_consistent(self):
+        lm = build_landmarks(self.adj, k=8)
+        rng = random.Random(1)
+        for t in rng.sample(sorted(self.adj), 20):
+            h = alt_heuristic(self.data.coords, lm, t, self.alpha)
+            self.assertEqual(h(t), 0.0)
+            for u, out in self.adj.items():
+                for v, _, w in out:
+                    if math.isfinite(h(v)):
+                        self.assertLessEqual(h(u), w + h(v) + 1e-6)
 
     def test_route_is_stair_free_and_connected(self):
         rng = random.Random(0)
