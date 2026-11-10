@@ -1,0 +1,8 @@
+ordered pairs 510510
+with route 464658
+no route 45852 (both agree)
+reachability disagreements 0
+cost mismatches (>1e-6) 0
+max |A*-Dijkstra| 0
+sum of costs: Dijkstra 365706421.944  A* 365706421.944
+nodes expanded total: Dijkstra 174364920  A* 78204958 (44.9%)
