@@ -53,3 +53,12 @@ print("mean time per query (us) by group")
 print(f"{'group':12s} {'n':>5s} " + " ".join(f"{n:>13s}" for n in names))
 for g, ids in groups.items():
     print(f"{g:12s} {len(ids):5d} " + " ".join(f"{st.mean(times[n][i] for i in ids):13.0f}" for n in names))
+print("\nreachable pairs only")
+R = sorted(dcost)
+for n in names:
+    x = sorted(times[n][i] for i in R)
+    q = lambda f: x[int(f * (len(x) - 1))]
+    print(f"{n:13s} mean {st.mean(x):5.0f}  median {q(.5):5.0f}  p90 {q(.9):5.0f}  p99 {q(.99):5.0f}  sd {st.pstdev(x):5.0f}")
+for a1, a2 in [("Bidirectional", "A*"), ("Bidirectional", "Dijkstra"), ("A*", "Dijkstra"), ("Bidirectional", "ALT")]:
+    w = sum(times[a1][i] < times[a2][i] for i in R)
+    print(f"{a1} faster than {a2}: {100*w/len(R):.1f}% of pairs")

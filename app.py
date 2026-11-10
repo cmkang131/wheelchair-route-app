@@ -63,8 +63,18 @@ adj = build_g_prime(data.edges, params)
 alpha = heuristic_scale(data.coords, adj)
 s, t = choices[start], choices[goal]
 
-t0 = time.perf_counter(); route = a_star(data.coords, adj, s, t, alpha); t_a = time.perf_counter() - t0
-t0 = time.perf_counter(); ref = dijkstra(data.coords, adj, s, t); t_d = time.perf_counter() - t0
+
+
+def timed(fn, runs=5):
+    """Run a search several times; keep the fastest time (one run is too noisy)."""
+    best = float("inf")
+    for _ in range(runs):
+        t0 = time.perf_counter(); res = fn(); best = min(best, time.perf_counter() - t0)
+    return res, best
+
+
+route, t_a = timed(lambda: a_star(data.coords, adj, s, t, alpha))
+ref, t_d = timed(lambda: dijkstra(data.coords, adj, s, t))
 
 
 @st.cache_resource
@@ -74,8 +84,8 @@ def landmarks_for(p: CostParams):
 
 lm = landmarks_for(params)
 rev = _reverse(adj)   # built once, outside the timed search (like ALT's landmarks)
-t0 = time.perf_counter(); bi = bidirectional_dijkstra(adj, s, t, rev); t_b = time.perf_counter() - t0
-t0 = time.perf_counter(); alt_route = alt(data.coords, adj, s, t, lm, alpha); t_l = time.perf_counter() - t0
+bi, t_b = timed(lambda: bidirectional_dijkstra(adj, s, t, rev))
+alt_route, t_l = timed(lambda: alt(data.coords, adj, s, t, lm, alpha))
 
 # distance-only baseline: every allowed edge, stairs included, cost = distance
 base_adj = {}
@@ -126,7 +136,7 @@ else:
             "algorithm": ["Dijkstra", "Bidirectional Dijkstra", "A* (straight line)", "ALT (8 landmarks)"],
             "total cost": [round(x.cost, 2) for x in (ref, bi, route, alt_route)],
             "nodes expanded": [x.expanded for x in (ref, bi, route, alt_route)],
-            "time (ms)": [round(x * 1000, 2) for x in (t_d, t_b, t_a, t_l)],
+            "time (ms, best of 5)": [round(x * 1000, 2) for x in (t_d, t_b, t_a, t_l)],
         }).set_index("algorithm"))
         st.caption(f"h(v) = {alpha:.4f} × straight-line distance to the destination. "
                    f"Same cost: {math.isclose(route.cost, ref.cost, abs_tol=1e-6)}")
