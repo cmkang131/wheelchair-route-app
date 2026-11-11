@@ -30,17 +30,6 @@ POSTECH 캠퍼스 그래프에서 계단 없이 갈 수 있는 최소 비용 경
 | tests/ | 비용식, A* = Dijkstra, 휴리스틱 일관성 테스트 |
 | data/ | nodes, edges, buildings, entrances CSV |
 
-## 실행
-
-```
-pip install -r requirements.txt
-streamlit run app.py        # 또는 Mac: bash run_mac.sh (localhost:8502)
-```
-
-테스트: `python3 -m unittest discover tests`
-
-데이터를 바꿀 때는 Graph Builder에서 내보낸 CSV 4개를 data/에 덮어씁니다.
-
 ## 한계
 
 - 간선이 아직 검수되지 않았습니다(enabled=False). 지금은 계단과 통행 불가만 빼고 씁니다.
