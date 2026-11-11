@@ -1,28 +1,48 @@
-# Wheelchair Route App (PBL1) (데모)
+# Wheelchair Route App (Demo)
 
-팀 앱 설계(컴포넌트 1~6)대로 만든 실행 버전. 실제 Graph Builder 데이터(11/10 버전, 경사 포함)를 씀.
+POSTECH 캠퍼스 그래프에서 계단 없이 갈 수 있는 최소 비용 경로를 A*로 찾는 데모 앱입니다. 알고리즘(CSED331) PBL1 결과물입니다.
 
-| 파일 | 역할 |
+앱: https://wheelchair-route-app-ewdgvkeyemissppjwg4t9p.streamlit.app/
+
+## 비용
+
+간선 비용 = 거리 + 거리 × a × max(0, 경사 − 기준 경사)
+
+계단, 통행 불가 간선, 금지 방향은 그래프에서 뺍니다. 기본값은 a = 5, 기준 경사 5%이고, 앱 사이드바에서 바꿀 수 있습니다.
+
+## 결과
+
+- 모든 노드 쌍 510,510개에서 A*와 Dijkstra의 경로 비용이 같습니다.
+- 경로가 있는 랜덤 26,552쌍(C++)에서 A*는 노드를 40%만 탐색하고, 평균 5.9μs로 Dijkstra(10.5μs)보다 빠릅니다. A*가 더 빠른 쌍은 96%입니다.
+- 건물 113쌍은 거리 기준 최단 경로가 계단을 지나고, 계단을 피하면 평균 178m 돌아갑니다.
+
+## 파일
+
+| 파일 | 내용 |
 |---|---|
-| data_loader.py | 1. Graph Builder CSV 읽기 |
-| cost_model.py | 2. 파트1 비용 (팀 비용 모델 의사코드 그대로) |
-| pathfinding.py | 3. 파트2 A*, ALT(랜드마크), 양방향 Dijkstra, 기준 Dijkstra |
-| benchmark.py | 276쌍에서 Dijkstra·양방향 Dijkstra·A*·ALT 탐색 노드·시간 비교 (5회 평균) |
-| app.py | 4~6. 경로 요약, 경고, 지도, 화면 |
+| app.py | Streamlit 화면 (경로 요약, 경고, 지도, A* vs Dijkstra) |
+| data_loader.py | Graph Builder CSV 읽기 |
+| cost_model.py | 간선 비용 계산 |
+| pathfinding.py | A*, Dijkstra (비교용으로 ALT, 양방향 Dijkstra도 있음) |
+| check_all_pairs.py | 모든 노드 쌍에서 A*와 Dijkstra 비용 비교 |
+| benchmark_wide.py | 랜덤 쌍 속도 비교 (Python) |
+| cpp/ | 같은 비교의 C++ 버전과 결과 |
+| tests/ | 비용식, A* = Dijkstra, 휴리스틱 일관성 테스트 |
 | data/ | nodes, edges, buildings, entrances CSV |
-| tests/ | 비용식 예시(100m·10%→125), A*=Dijkstra 비용 일치, h 일관성 검사 |
 
-실행: `bash run_mac.sh` → http://localhost:8502 (그래프 빌더 8501과 안 겹치게 8502)
+## 실행
+
+```
+pip install -r requirements.txt
+streamlit run app.py        # 또는 Mac: bash run_mac.sh (localhost:8502)
+```
+
 테스트: `python3 -m unittest discover tests`
 
-데이터 갱신: Graph Builder에서 내보낸 nodes/edges/buildings/entrances.csv를 data/에 덮어쓰기.
+데이터를 바꿀 때는 Graph Builder에서 내보낸 CSV 4개를 data/에 덮어씁니다.
 
-가정(팀 확인 필요)
-- a=5, 기준 경사 5%: 비용 모델 문서 예시(100m, 10% → 125)에서 역산. 사이드바에서 바꿀 수 있음.
-- 엘리베이터·장애물 페널티 기본 0 (현재 데이터에 값이 없음).
-- 경사 값이 빈 엣지는 경사 비용 0, 경고로 표시.
-- 엣지가 전부 미검증(enabled=False)이라 검증 여부로는 거르지 않음. 계단·BLOCKED·통행 금지 방향만 제외.
+## 한계
 
-## 웹 버전 (설치 없이 링크로)
-
-`web/index.html`은 같은 비용식과 A*를 JavaScript로 옮긴 단일 페이지. 데이터 갱신 후 `python3 web/build.py`로 다시 만든다.
+- 간선이 아직 검수되지 않았습니다(enabled=False). 지금은 계단과 통행 불가만 빼고 씁니다.
+- a = 5, 기준 경사 5%는 비용 모델 문서의 예시(100m, 10% → 125)에서 역산한 가정입니다.
+- 경사 값이 없는 간선은 경사 비용을 0으로 두고 경고를 띄웁니다.
